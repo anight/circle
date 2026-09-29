@@ -25,7 +25,7 @@
 #include <assert.h>
 
 CUSBCDCGadgetEndpoint::CUSBCDCGadgetEndpoint (const TUSBEndpointDescriptor *pDesc,
-						CUSBCDCGadget *pGadget)
+						CDWUSBGadget *pGadget)
 :	CDWUSBGadgetEndpoint (pDesc, pGadget),
 	m_pInterface (nullptr),
 	m_nStatus (0),

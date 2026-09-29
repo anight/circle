@@ -35,7 +35,7 @@ class CUSBSerialDevice;
 class CUSBCDCGadgetEndpoint : public CDWUSBGadgetEndpoint /// Endpoint of the USB serial CDC gadget
 {
 public:
-	CUSBCDCGadgetEndpoint (const TUSBEndpointDescriptor *pDesc, CUSBCDCGadget *pGadget);
+	CUSBCDCGadgetEndpoint (const TUSBEndpointDescriptor *pDesc, CDWUSBGadget *pGadget);
 	~CUSBCDCGadgetEndpoint (void);
 
 	void AttachInterface (CUSBSerialDevice *pInterface);
