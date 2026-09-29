@@ -28,7 +28,8 @@ static const char FromEP0[] = "ep0";
 
 CDWUSBGadgetEndpoint0::CDWUSBGadgetEndpoint0 (size_t nMaxPacketSize, CDWUSBGadget *pGadget)
 :	CDWUSBGadgetEndpoint (nMaxPacketSize, pGadget),
-	m_State (StateDisconnect)
+	m_State (StateDisconnect),
+	m_bZeroPacket (FALSE)
 {
 }
 
@@ -74,7 +75,10 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 
 	if (pSetupData->bmRequestType & REQUEST_IN)
 	{
-		switch (pSetupData->bRequest)
+		// standard requests by number; class and vendor requests (whose
+		// numbers may be the same: GUD's GET_STATUS is 0) to the gadget
+		switch (  pSetupData->bmRequestType & (REQUEST_CLASS | REQUEST_VENDOR)
+			? 0xFF : pSetupData->bRequest)
 		{
 		case GET_DESCRIPTOR: {
 			size_t nLength;
@@ -103,6 +107,7 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 			// EP0 can transfer only up to 127 bytes at once. Therefore we split greater
 			// descriptors into multiple transfers, with up to max. packet size each.
 			m_nBytesLeft = nLength;
+			m_bZeroPacket = ZeroPacketNeeded (nLength, pSetupData->wLength);
 			m_pBufPtr = m_InBuffer;
 
 			BeginTransfer (TransferDataIn, m_pBufPtr,
@@ -131,13 +136,19 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 			break;
 
 		default:
+			// (a request for more than BufferSize is answered with at most
+			// BufferSize bytes, and one of 0 bytes with an empty data stage)
 			if (   pSetupData->bmRequestType & (REQUEST_CLASS | REQUEST_VENDOR)
-			    && pSetupData->wLength > 0
-			    && pSetupData->wLength <= BufferSize)
+			    && pSetupData->wLength > 0)
 			{
 				assert (m_pGadget);
 				int nLen = m_pGadget->OnClassOrVendorRequest (pSetupData, m_InBuffer);
-				if (nLen > 0)
+				assert (nLen <= (int) BufferSize);
+				if (nLen > pSetupData->wLength)
+				{
+					nLen = pSetupData->wLength;
+				}
+				if (nLen >= 0)
 				{
 					m_State = StateInDataPhase;
 
@@ -145,6 +156,7 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 					// we split greater transfers into multiple transfers, with
 					// up to max. packet size each.
 					m_nBytesLeft = nLen;
+					m_bZeroPacket = ZeroPacketNeeded (nLen, pSetupData->wLength);
 					m_pBufPtr = m_InBuffer;
 
 					BeginTransfer (TransferDataIn, m_pBufPtr,
@@ -161,7 +173,10 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 	}
 	else
 	{
-		switch (pSetupData->bRequest)
+		// standard requests by number; class and vendor requests (whose
+		// numbers may be the same: GUD's GET_STATUS is 0) to the gadget
+		switch (  pSetupData->bmRequestType & (REQUEST_CLASS | REQUEST_VENDOR)
+			? 0xFF : pSetupData->bRequest)
 		{
 		case SET_ADDRESS:
 			m_pGadget->SetDeviceAddress (pSetupData->wValue & 0xFF);
@@ -223,6 +238,14 @@ void CDWUSBGadgetEndpoint0::OnControlMessage (void)
 	}
 }
 
+// An IN data stage shorter than the host asked for ends with a short packet;
+// if its length is a multiple of the packet size, that is a zero-length one
+// (USB 2.0 5.5.3). Without it the host waits for more (e.g. a 128-byte EDID).
+boolean CDWUSBGadgetEndpoint0::ZeroPacketNeeded (size_t nLength, size_t nRequested) const
+{
+	return nLength > 0 && nLength < nRequested && nLength % m_nMaxPacketSize == 0;
+}
+
 void CDWUSBGadgetEndpoint0::OnTransferComplete (boolean bIn, size_t nLength)
 {
 	switch (m_State)
@@ -238,6 +261,13 @@ void CDWUSBGadgetEndpoint0::OnTransferComplete (boolean bIn, size_t nLength)
 				         m_nBytesLeft <= m_nMaxPacketSize
 				       ? m_nBytesLeft : m_nMaxPacketSize);
 
+			break;
+		}
+
+		if (m_bZeroPacket)		// a short answer, a multiple of the packet size
+		{
+			m_bZeroPacket = FALSE;
+			BeginTransfer (TransferDataIn, nullptr, 0);
 			break;
 		}
 

@@ -39,6 +39,8 @@ public:
 	void OnTransferComplete (boolean bIn, size_t nLength) override;
 
 private:
+	boolean ZeroPacketNeeded (size_t nLength, size_t nRequested) const;
+
 	enum TState
 	{
 		StateDisconnect,
@@ -53,6 +55,7 @@ private:
 	TState m_State;
 
 	size_t m_nBytesLeft;
+	boolean m_bZeroPacket;		// an IN data stage ends with a zero-length packet
 	u8 *m_pBufPtr;
 
 	static const size_t BufferSize = 512;
