@@ -57,6 +57,11 @@ CMemorySystem::CMemorySystem (boolean bEnableMMU)
 
 	assert (TagMemory.nBaseAddress == 0);
 	m_nMemSize = TagMemory.nSize;
+#ifdef MEM_PERSISTENT_SIZE
+	// the top of the ARM memory is the application's: out of the heap and the
+	// pages, it survives a restart (the firmware leaves it alone)
+	m_nMemSize -= MEM_PERSISTENT_SIZE;
+#endif
 
 #ifndef KASAN_SUPPORTED
 	uintptr ulHeapMemStart = MEM_HEAP_START;
