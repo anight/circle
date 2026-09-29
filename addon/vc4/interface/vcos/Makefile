@@ -15,8 +15,4 @@ libvcos.a: $(OBJS)
 
 include $(CIRCLEHOME)/Rules.mk
 
-ifeq ($(strip $(AARCH)),64)
-$(error AARCH = 64 is not supported here)
-endif
-
 -include $(DEPS)
