@@ -22,6 +22,7 @@
 #include <circle/usb/gadget/usbcdcgadgetendpoint.h>
 #include <circle/usb/gadget/usbcdcgadget.h>
 #include <circle/usb/usbserial.h>
+#include <circle/util.h>
 #include <assert.h>
 
 CUSBCDCGadgetEndpoint::CUSBCDCGadgetEndpoint (const TUSBEndpointDescriptor *pDesc,
@@ -110,10 +111,7 @@ void CUSBCDCGadgetEndpoint::OnTransferComplete (boolean bIn, size_t nLength)
 			unsigned nBytesAvail = GetQueueBytesAvail ();
 			if (nBytesAvail)
 			{
-				if (nBytesAvail > MaxInMessageSize-1)	// see Write()
-				{
-					nBytesAvail = MaxInMessageSize-1;
-				}
+				nBytesAvail = InTransferLength (nBytesAvail);	// see Write()
 
 				Dequeue (m_InBuffer, nBytesAvail);
 
@@ -185,13 +183,7 @@ int CUSBCDCGadgetEndpoint::Write (const void *pData, unsigned nLength)
 	m_bInActive = TRUE;
 
 	unsigned nBytesAvail = GetQueueBytesAvail ();
-	// pigpu: stay below wMaxPacketSize (512), so that every transfer ends
-	// with a short packet. A full-size last packet without a following ZLP
-	// leaves the data pending in the host's (cdc_acm) read URB.
-	if (nBytesAvail > MaxInMessageSize-1)
-	{
-		nBytesAvail = MaxInMessageSize-1;
-	}
+	nBytesAvail = InTransferLength (nBytesAvail);
 
 	Dequeue (m_InBuffer, nBytesAvail);
 
@@ -200,6 +192,24 @@ int CUSBCDCGadgetEndpoint::Write (const void *pData, unsigned nLength)
 	BeginTransfer (TransferDataIn, m_InBuffer, nBytesAvail);
 
 	return nLength;
+}
+
+// pigpu: every transfer ends with a short packet: a full-size last packet
+// without a following ZLP leaves the data pending in the host's (cdc_acm) read
+// URB. So never a multiple of 64 bytes (the full-speed packet size; then not
+// of 512 either).
+unsigned CUSBCDCGadgetEndpoint::InTransferLength (unsigned nBytesAvail)
+{
+	if (nBytesAvail > MaxInMessageSize)
+	{
+		nBytesAvail = MaxInMessageSize;
+	}
+	if (nBytesAvail % 64 == 0)
+	{
+		nBytesAvail--;
+	}
+
+	return nBytesAvail;
 }
 
 int CUSBCDCGadgetEndpoint::Read (void *pBuffer, unsigned nLength)
@@ -285,15 +295,21 @@ void CUSBCDCGadgetEndpoint::Enqueue (const void *pBuffer, unsigned nCount)
 	assert (m_pQueue != 0);
 
 	assert (nCount > 0);
-	while (nCount-- > 0)
+	// pigpu: in blocks (up to the end of the ring, then from its start)
+	unsigned nInPtr = m_nInPtr;
+	while (nCount > 0)
 	{
-		m_pQueue[m_nInPtr] = *p++;
-
-		if (++m_nInPtr == QueueSize)
+		unsigned nChunk = QueueSize - nInPtr < nCount ? QueueSize - nInPtr : nCount;
+		memcpy (m_pQueue + nInPtr, p, nChunk);
+		p += nChunk;
+		nCount -= nChunk;
+		nInPtr += nChunk;
+		if (nInPtr == QueueSize)
 		{
-			m_nInPtr = 0;
+			nInPtr = 0;
 		}
 	}
+	m_nInPtr = nInPtr;
 }
 
 void CUSBCDCGadgetEndpoint::Dequeue (void *pBuffer, unsigned nCount)
@@ -303,13 +319,19 @@ void CUSBCDCGadgetEndpoint::Dequeue (void *pBuffer, unsigned nCount)
 	assert (m_pQueue != 0);
 
 	assert (nCount > 0);
-	while (nCount-- > 0)
+	// pigpu: in blocks (up to the end of the ring, then from its start)
+	unsigned nOutPtr = m_nOutPtr;
+	while (nCount > 0)
 	{
-		*p++ = m_pQueue[m_nOutPtr];
-
-		if (++m_nOutPtr == QueueSize)
+		unsigned nChunk = QueueSize - nOutPtr < nCount ? QueueSize - nOutPtr : nCount;
+		memcpy (p, m_pQueue + nOutPtr, nChunk);
+		p += nChunk;
+		nCount -= nChunk;
+		nOutPtr += nChunk;
+		if (nOutPtr == QueueSize)
 		{
-			m_nOutPtr = 0;
+			nOutPtr = 0;
 		}
 	}
+	m_nOutPtr = nOutPtr;
 }

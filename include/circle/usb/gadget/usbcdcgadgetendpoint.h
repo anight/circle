@@ -58,6 +58,7 @@ private:
 	unsigned GetQueueBytesAvail (void);
 	void Enqueue (const void *pBuffer, unsigned nCount);
 	void Dequeue (void *pBuffer, unsigned nCount);
+	unsigned InTransferLength (unsigned nBytesAvail);
 
 private:
 	CUSBSerialDevice *m_pInterface;
@@ -66,13 +67,13 @@ private:
 
 	volatile boolean m_bInActive;
 
-	static const size_t QueueSize = 8192+1;
+	static const size_t QueueSize = 65536+1;
 	u8 *m_pQueue;
 	volatile unsigned m_nInPtr;
 	volatile unsigned m_nOutPtr;
 
 	static const size_t MaxOutMessageSize = 512;
-	static const size_t MaxInMessageSize = 512;
+	static const size_t MaxInMessageSize = 16384;
 	DMA_BUFFER (u8, m_OutBuffer, MaxOutMessageSize);
 	DMA_BUFFER (u8, m_InBuffer, MaxInMessageSize);
 
