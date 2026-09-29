@@ -92,7 +92,10 @@ void CUSBCDCGadgetEndpoint::OnTransferComplete (boolean bIn, size_t nLength)
 			m_nStatus = -1;		// RX overrun
 		}
 
-		Enqueue (m_OutBuffer, nLength);
+		if (nLength)			// (queue full: Enqueue asserts on 0)
+		{
+			Enqueue (m_OutBuffer, nLength);
+		}
 
 		m_SpinLock.Release ();
 
