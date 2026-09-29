@@ -194,7 +194,7 @@ int CUSBCDCGadgetEndpoint::Write (const void *pData, unsigned nLength)
 	return nLength;
 }
 
-// pigpu: every transfer ends with a short packet: a full-size last packet
+// piegpu: every transfer ends with a short packet: a full-size last packet
 // without a following ZLP leaves the data pending in the host's (cdc_acm) read
 // URB. So never a multiple of 64 bytes (the full-speed packet size; then not
 // of 512 either).
@@ -295,7 +295,7 @@ void CUSBCDCGadgetEndpoint::Enqueue (const void *pBuffer, unsigned nCount)
 	assert (m_pQueue != 0);
 
 	assert (nCount > 0);
-	// pigpu: in blocks (up to the end of the ring, then from its start)
+	// piegpu: in blocks (up to the end of the ring, then from its start)
 	unsigned nInPtr = m_nInPtr;
 	while (nCount > 0)
 	{
@@ -319,7 +319,7 @@ void CUSBCDCGadgetEndpoint::Dequeue (void *pBuffer, unsigned nCount)
 	assert (m_pQueue != 0);
 
 	assert (nCount > 0);
-	// pigpu: in blocks (up to the end of the ring, then from its start)
+	// piegpu: in blocks (up to the end of the ring, then from its start)
 	unsigned nOutPtr = m_nOutPtr;
 	while (nCount > 0)
 	{
