@@ -110,9 +110,9 @@ void CUSBCDCGadgetEndpoint::OnTransferComplete (boolean bIn, size_t nLength)
 			unsigned nBytesAvail = GetQueueBytesAvail ();
 			if (nBytesAvail)
 			{
-				if (nBytesAvail > MaxInMessageSize)
+				if (nBytesAvail > MaxInMessageSize-1)	// see Write()
 				{
-					nBytesAvail = MaxInMessageSize;
+					nBytesAvail = MaxInMessageSize-1;
 				}
 
 				Dequeue (m_InBuffer, nBytesAvail);
@@ -185,9 +185,12 @@ int CUSBCDCGadgetEndpoint::Write (const void *pData, unsigned nLength)
 	m_bInActive = TRUE;
 
 	unsigned nBytesAvail = GetQueueBytesAvail ();
-	if (nBytesAvail > MaxInMessageSize)
+	// pigpu: stay below wMaxPacketSize (512), so that every transfer ends
+	// with a short packet. A full-size last packet without a following ZLP
+	// leaves the data pending in the host's (cdc_acm) read URB.
+	if (nBytesAvail > MaxInMessageSize-1)
 	{
-		nBytesAvail = MaxInMessageSize;
+		nBytesAvail = MaxInMessageSize-1;
 	}
 
 	Dequeue (m_InBuffer, nBytesAvail);
