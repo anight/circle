@@ -28,6 +28,8 @@
 #include <circle/timer.h>
 #include <assert.h>
 
+#define CANCEL_TIMEOUT_US	500000		// the most Cancel waits for the VideoCore
+
 #define VOLUME_TO_CHIP(volume)		((unsigned) -(((volume) << 8) / 100))
 
 static const char FromVCHIQSound[] = "sndvchiq";
@@ -254,11 +256,25 @@ void CVCHIQSoundBaseDevice::Cancel (void)
 	}
 
 	m_State = VCHIQSoundCancelled;
-	if (m_nWritePos - m_nCompletePos > 0)
+	// (signed: the VideoCore can report more completed than was written, seen
+	// after it ran dry; unsigned, that looked like a queue that never ends)
+	if ((int) (m_nWritePos - m_nCompletePos) > 0)
 	{
-		while (m_State == VCHIQSoundCancelled)
+		// the chunks queued in the VideoCore complete (the callback ends the
+		// wait): not waited for forever all the same
+		unsigned nStart = CTimer::GetClockTicks ();
+		while (   m_State == VCHIQSoundCancelled
+		       && CTimer::GetClockTicks () - nStart < CANCEL_TIMEOUT_US)
 		{
 			CScheduler::Get ()->Yield ();
+		}
+		if (m_State == VCHIQSoundCancelled)
+		{
+			CLogger::Get ()->Write (FromVCHIQSound, LogWarning,
+						"No completion from the VideoCore in %u ms (%d bytes queued): "
+						"stopping", CANCEL_TIMEOUT_US / 1000,
+						(int) (m_nWritePos - m_nCompletePos));
+			m_State = VCHIQSoundTerminating;
 		}
 	}
 	else
@@ -458,7 +474,7 @@ void CVCHIQSoundBaseDevice::Callback (const VCHI_CALLBACK_REASON_T Reason, void 
 		}
 
 		// if there is no more than one chunk left queued
-		if (m_nWritePos-m_nCompletePos <= m_nChunkSize*sizeof (s16))
+		if ((int) (m_nWritePos-m_nCompletePos) <= (int) (m_nChunkSize*sizeof (s16)))
 		{
 			if (m_State == VCHIQSoundCancelled)
 			{
