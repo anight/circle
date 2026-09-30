@@ -81,6 +81,15 @@ public:
 	/// \return Pointer to sound controller object
 	CSoundController *GetController (void) override;
 
+	/// \return Number of completion messages with flags (bits 31-30 of their
+	///	    count; the firmware's, undocumented: Linux' driver takes such a
+	///	    count as an underrun)
+	unsigned GetCompleteFlagCount (void) const	{ return m_nCompleteFlagCount; }
+	/// \return The flags of the last one of them (bits 31-30)
+	unsigned GetLastCompleteFlags (void) const	{ return m_nLastCompleteFlags; }
+	/// \return When the last one came (CTimer::GetClockTicks ())
+	unsigned GetLastCompleteFlagTime (void) const	{ return m_nLastCompleteFlagTime; }
+
 protected:
 	/// \brief May overload this to provide the sound samples!
 	/// \param pBuffer	buffer where the samples have to be placed
@@ -115,6 +124,9 @@ private:
 
 	unsigned m_nWritePos;
 	unsigned m_nCompletePos;
+	volatile unsigned m_nCompleteFlagCount;
+	volatile unsigned m_nLastCompleteFlags;
+	volatile unsigned m_nLastCompleteFlagTime;
 
 	CVCHIQSoundController m_Controller;
 };

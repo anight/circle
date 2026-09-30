@@ -25,6 +25,7 @@
 #include <circle/devicenameservice.h>
 #include <circle/sched/scheduler.h>
 #include <circle/logger.h>
+#include <circle/timer.h>
 #include <assert.h>
 
 #define VOLUME_TO_CHIP(volume)		((unsigned) -(((volume) << 8) / 100))
@@ -42,6 +43,9 @@ CVCHIQSoundBaseDevice::CVCHIQSoundBaseDevice (CVCHIQDevice *pVCHIQDevice,
 	m_State (VCHIQSoundCreated),
 	m_VCHIInstance (0),
 	m_hService (0),
+	m_nCompleteFlagCount (0),
+	m_nLastCompleteFlags (0),
+	m_nLastCompleteFlagTime (0),
 	m_Controller (this, Destination)
 {
 	//assert (44100 <= nSampleRate && nSampleRate <= 48000);
@@ -446,6 +450,12 @@ void CVCHIQSoundBaseDevice::Callback (const VCHI_CALLBACK_REASON_T Reason, void 
 		}
 
 		m_nCompletePos += Msg.u.complete.count & 0x3FFFFFFF;
+		if (Msg.u.complete.count & 0xC0000000)
+		{
+			m_nCompleteFlagCount++;
+			m_nLastCompleteFlags = Msg.u.complete.count & 0xC0000000;
+			m_nLastCompleteFlagTime = CTimer::GetClockTicks ();
+		}
 
 		// if there is no more than one chunk left queued
 		if (m_nWritePos-m_nCompletePos <= m_nChunkSize*sizeof (s16))
